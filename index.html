@@ -195,24 +195,46 @@ async function connectBle(all) {
     alertBox("Este navegador no tiene Bluetooth web. En computador usa Google Chrome o Edge. En iPhone usa la app gratuita \"Bluefy\". En Android usa Chrome.");
     return;
   }
+  const SVC = "0000ffe0-0000-1000-8000-00805f9b34fb";
+  const CHR = "0000ffe1-0000-1000-8000-00805f9b34fb";
+  let step = "elegir el aparato";
+  let server = null;
   try {
     const opts = all
-      ? { acceptAllDevices: true, optionalServices: [0xFFE0] }
-      : { filters: [{ services: [0xFFE0] }, { namePrefix: "BT" }, { namePrefix: "MLT" },
+      ? { acceptAllDevices: true, optionalServices: [SVC] }
+      : { filters: [{ services: [SVC] }, { namePrefix: "BT" }, { namePrefix: "MLT" },
                     { namePrefix: "HM" }, { namePrefix: "AT" }, { namePrefix: "JDY" }],
-          optionalServices: [0xFFE0] };
+          optionalServices: [SVC] };
     bleDevice = await navigator.bluetooth.requestDevice(opts);
-    setStatus(false, "Conectando a " + (bleDevice.name || "módulo") + "…");
+    const name = bleDevice.name || "sin nombre";
+    setStatus(false, "Conectando a " + name + "…");
     bleDevice.addEventListener("gattserverdisconnected", () => { if (mode === "ble") { mode = null; setStatus(false, "Se desconectó"); } });
-    const server = await bleDevice.gatt.connect();
-    const service = await server.getPrimaryService(0xFFE0);
-    bleChar = await service.getCharacteristic(0xFFE1);
+
+    step = "conectarse al aparato";
+    try { server = await bleDevice.gatt.connect(); }
+    catch (e1) { await new Promise(r => setTimeout(r, 800)); server = await bleDevice.gatt.connect(); } // 2do intento
+
+    step = "buscar el servicio FFE0";
+    let service;
+    try { service = await server.getPrimaryService(SVC); }
+    catch (e2) {
+      try { bleDevice.gatt.disconnect(); } catch (_) {}
+      setStatus(false, "Ese aparato no es el módulo");
+      alertBox("Te conectaste a \"" + name + "\", pero ese aparato NO es el módulo (no tiene el servicio FFE0).\n\nToca de nuevo \"Ver todos los Bluetooth\" y elige otro. Fíjate en la luz roja del módulo: cuando elijas el correcto, deja de parpadear.");
+      return;
+    }
+
+    step = "buscar la característica FFE1";
+    bleChar = await service.getCharacteristic(CHR);
     mode = "ble";
-    setStatus(true, "Conectado por Bluetooth: " + (bleDevice.name || "módulo"));
+    setStatus(true, "Conectado por Bluetooth: " + name);
   } catch (e) {
-    if (e.name === "NotFoundError") { setStatus(false, "Sin conectar"); return; }
+    const msg = (e && (e.message || e.name)) || String(e);
+    if ((e && e.name === "NotFoundError" && step === "elegir el aparato") || /cancel/i.test(msg)) { setStatus(false, "Sin conectar"); return; }
+    try { if (bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect(); } catch (_) {}
     setStatus(false, "No se pudo conectar");
-    alertBox("No se pudo conectar: " + e.message + "\n\nSi elegiste un aparato que no es el módulo, intenta de nuevo con otro. Revisa que la luz roja del módulo esté parpadeando (nadie más conectado).");
+    alertBox("No se pudo conectar.\nPaso que falló: " + step + "\nDetalle: " + msg +
+      "\n\nPrueba: 1) desconecta y reconecta el Arduino, 2) revisa que la luz roja del módulo esté parpadeando, 3) vuelve a intentar y elige otro aparato de la lista.");
   }
 }
 
