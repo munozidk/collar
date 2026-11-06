@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Control Ojos al Frente</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #15171a; --muted: #636a73; --line: #dfe2e6;
+    --accent: #0f766e; --accent-soft: #d6f0ec;
+    --left: #2563eb; --right: #c2410c; --back: #7c3aed; --stop: #dc2626; --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101214; --card: #1a1d21; --text: #eceef1; --muted: #9aa1aa; --line: #2c3036;
+      --accent: #2dd4bf; --accent-soft: #123a36;
+      --left: #60a5fa; --right: #fb923c; --back: #a78bfa; --stop: #f87171; --ok: #4ade80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 22px; margin: 4px 0 2px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+
+  .conn { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+  .status { display: flex; align-items: center; gap: 10px; font-weight: 600; margin-bottom: 10px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--stop); flex: none; }
+  .dot.on { background: var(--ok); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 10px;
+         padding: 10px 14px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { .btn.primary { color: #06201d; } }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .hint { color: var(--muted); font-size: 13px; margin: 10px 0 0; line-height: 1.4; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tab { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card);
+         color: var(--text); font-weight: 600; font-size: 15px; cursor: pointer; }
+  .tab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+  .panel { display: none; } .panel.active { display: block; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .sig { border: none; border-radius: 14px; padding: 14px 8px; min-height: 84px; font-size: 16px; font-weight: 700;
+         color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         gap: 4px; line-height: 1.15; touch-action: manipulation; transition: transform .08s, filter .15s; }
+  .sig small { font-weight: 500; font-size: 12px; opacity: .85; }
+  .sig:active { transform: scale(.96); }
+  .sig.flash { filter: brightness(1.35); }
+  .sig.left { background: var(--left); } .sig.right { background: var(--right); }
+  .sig.back { background: var(--back); } .sig.stop { background: var(--stop); }
+  .sig.ok { background: var(--ok); }
+  @media (prefers-color-scheme: dark) { .sig { color: #0b0d10; } }
+  .sig.soft { opacity: .78; }
+  .section-label { font-size: 13px; color: var(--muted); font-weight: 600; margin: 16px 0 8px; text-transform: uppercase; letter-spacing: .04em; }
+  .last { margin-top: 12px; color: var(--muted); font-size: 14px; min-height: 20px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .big { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .answer { font-size: 18px; font-weight: 700; margin: 6px 0 10px; min-height: 24px; }
+  .opts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .opts .btn { padding: 14px 8px; }
+  .good { color: var(--ok); } .bad { color: var(--stop); }
+  .counters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .counter { text-align: center; }
+  .counter .n { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .counter .btn { width: 100%; margin-top: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+  @media (max-width: 420px) { .sig { font-size: 14px; min-height: 76px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ojos al Frente · Control</h1>
+  <p class="sub">Control remoto del collar de vibraciones</p>
+
+  <div class="conn">
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">Sin conectar</span></div>
+    <div class="row">
+      <button class="btn primary" id="btnBle">Conectar por Bluetooth</button>
+      <button class="btn" id="btnUsb">Conectar por cable USB</button>
+      <button class="btn" id="btnOff" disabled>Desconectar</button>
+    </div>
+    <p class="hint" id="hint">
+      <b>Bluetooth:</b> la lista solo muestra módulos compatibles. Elige el que aparezca; al conectarse, la luz roja del módulo deja de parpadear.
+      Si no aparece ninguno, usa "Ver todos".<br>
+      <b>USB:</b> conecta el Arduino al computador (cierra antes el Monitor serie del programa de Arduino).
+    </p>
+    <div class="row" style="margin-top:8px"><button class="btn" id="btnBleAll">Ver todos los Bluetooth</button></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="control">Control</button>
+    <button class="tab" data-tab="practica">Práctica</button>
+    <button class="tab" data-tab="recorrido">Recorrido</button>
+  </div>
+
+  <!-- CONTROL -->
+  <section class="panel active" id="control">
+    <div class="section-label">Principales</div>
+    <div class="grid">
+      <button class="sig left soft" data-k="1">Prepárate<br>izquierda<small>tecla 1</small></button>
+      <button class="sig back" data-k="5">Sigue<br>derecho<small>tecla 5</small></button>
+      <button class="sig right soft" data-k="2">Prepárate<br>derecha<small>tecla 2</small></button>
+      <button class="sig left" data-k="3">◀ Izquierda<small>tecla 3</small></button>
+      <button class="sig stop" data-k="p">■ Para<small>tecla P</small></button>
+      <button class="sig right" data-k="4">Derecha ▶<small>tecla 4</small></button>
+    </div>
+    <div class="grid" style="margin-top:10px">
+      <button class="sig ok" data-k="l" style="grid-column: 1 / -1; min-height:64px">✓ Llegada<small>tecla L</small></button>
+    </div>
+    <div class="section-label">Carretera</div>
+    <div class="grid">
+      <button class="sig left soft" data-k="6">Carril<br>izquierda<small>tecla 6</small></button>
+      <button class="sig back soft" data-k="8">Giro en U<small>tecla 8</small></button>
+      <button class="sig right soft" data-k="7">Carril<br>derecha<small>tecla 7</small></button>
+      <button class="sig back soft" data-k="9">Baja la<br>velocidad<small>tecla 9</small></button>
+      <button class="sig stop soft" data-k="x">Desviación<small>tecla X</small></button>
+      <span></span>
+    </div>
+    <div class="last" id="last"></div>
+  </section>
+
+  <!-- PRÁCTICA -->
+  <section class="panel" id="practica">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div><div class="big" id="score">0 / 0</div><div class="sub" style="margin:0">aciertos</div></div>
+        <div style="text-align:right"><div class="big" id="pct">–</div><div class="sub" style="margin:0">meta: 80 %</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <label style="font-size:14px;font-weight:600">Participante
+          <input id="pid" value="P1" style="width:70px;margin-left:6px;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text)">
+        </label>
+        <label style="font-size:14px"><input type="checkbox" id="onlyMain" checked> Solo principales</label>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="btnRandom" style="flex:1;padding:14px">▶ Enviar señal al azar</button>
+        <button class="btn" id="btnRepeat" disabled>Repetir</button>
+      </div>
+      <div class="answer" id="pAnswer"></div>
+      <div class="sub" style="margin:0 0 8px">¿Qué dijo el participante?</div>
+      <div class="opts" id="opts"></div>
+    </div>
+    <div class="row">
+      <button class="btn" id="btnCsv">Descargar resultados (CSV)</button>
+      <button class="btn" id="btnResetP">Reiniciar práctica</button>
+    </div>
+    <table style="margin-top:10px"><thead><tr><th>#</th><th>Señal</th><th>Respuesta</th><th></th></tr></thead><tbody id="tbl"></tbody></table>
+  </section>
+
+  <!-- RECORRIDO -->
+  <section class="panel" id="recorrido">
+    <div class="card" style="text-align:center">
+      <div class="big" id="timer">00:00</div>
+      <div class="row" style="justify-content:center;margin-top:8px">
+        <button class="btn primary" id="btnTimer">Iniciar</button>
+        <button class="btn" id="btnTimerReset">Reiniciar</button>
+      </div>
+    </div>
+    <div class="card counters">
+      <div class="counter"><div class="sub" style="margin:0">Errores de ruta</div><div class="n" id="c0">0</div><button class="btn" data-c="0">+1</button></div>
+      <div class="counter"><div class="sub" style="margin:0">Miradas al celular</div><div class="n" id="c1">0</div><button class="btn" data-c="1">+1</button></div>
+      <div class="counter"><div class="sub" style="margin:0">Paradas</div><div class="n" id="c2">0</div><button class="btn" data-c="2">+1</button></div>
+    </div>
+    <p class="hint">Mantén presionado un "+1" para restar uno si te equivocaste. Las señales se siguen mandando desde la pestaña Control.</p>
+  </section>
+</div>
+
+<script>
+const NAMES = {
+  "1":"Prepárate izquierda","2":"Prepárate derecha","3":"Izquierda","4":"Derecha","5":"Sigue derecho",
+  "6":"Carril izquierda","7":"Carril derecha","8":"Giro en U","9":"Baja la velocidad",
+  "p":"Para","x":"Desviación","l":"Llegada"
+};
+const MAIN = ["1","2","3","4","5","p","l"];
+
+// ---------- Conexión ----------
+let mode = null, bleDevice = null, bleChar = null, port = null, writer = null;
+const $ = id => document.getElementById(id);
+
+function setStatus(on, text) {
+  $("dot").classList.toggle("on", on);
+  $("statusText").textContent = text;
+  $("btnOff").disabled = !on;
+}
+
+async function connectBle(all) {
+  if (!navigator.bluetooth) {
+    alertBox("Este navegador no tiene Bluetooth web. En computador usa Google Chrome o Edge. En iPhone usa la app gratuita \"Bluefy\". En Android usa Chrome.");
+    return;
+  }
+  try {
+    const opts = all
+      ? { acceptAllDevices: true, optionalServices: [0xFFE0] }
+      : { filters: [{ services: [0xFFE0] }, { namePrefix: "BT" }, { namePrefix: "MLT" },
+                    { namePrefix: "HM" }, { namePrefix: "AT" }, { namePrefix: "JDY" }],
+          optionalServices: [0xFFE0] };
+    bleDevice = await navigator.bluetooth.requestDevice(opts);
+    setStatus(false, "Conectando a " + (bleDevice.name || "módulo") + "…");
+    bleDevice.addEventListener("gattserverdisconnected", () => { if (mode === "ble") { mode = null; setStatus(false, "Se desconectó"); } });
+    const server = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(0xFFE0);
+    bleChar = await service.getCharacteristic(0xFFE1);
+    mode = "ble";
+    setStatus(true, "Conectado por Bluetooth: " + (bleDevice.name || "módulo"));
+  } catch (e) {
+    if (e.name === "NotFoundError") { setStatus(false, "Sin conectar"); return; }
+    setStatus(false, "No se pudo conectar");
+    alertBox("No se pudo conectar: " + e.message + "\n\nSi elegiste un aparato que no es el módulo, intenta de nuevo con otro. Revisa que la luz roja del módulo esté parpadeando (nadie más conectado).");
+  }
+}
+
+async function connectUsb() {
+  if (!navigator.serial) {
+    alertBox("La conexión por cable solo funciona en Google Chrome o Edge en computador.");
+    return;
+  }
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 9600 });
+    writer = port.writable.getWriter();
+    mode = "usb";
+    setStatus(true, "Conectado por cable USB");
+  } catch (e) {
+    if (e.name === "NotFoundError") return;
+    setStatus(false, "No se pudo conectar");
+    alertBox("No se pudo abrir el puerto: " + e.message + "\n\nCierra el Monitor serie del programa de Arduino y vuelve a intentar.");
+  }
+}
+
+async function disconnect() {
+  try {
+    if (mode === "ble" && bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
+    if (mode === "usb") { writer && writer.releaseLock(); await port.close(); }
+  } catch (e) {}
+  mode = null; setStatus(false, "Sin conectar");
+}
+
+async function send(k) {
+  if (!mode) { alertBox("Primero conecta el collar (Bluetooth o cable USB)."); return false; }
+  const data = new TextEncoder().encode(k);
+  try {
+    if (mode === "ble") {
+      if (bleChar.writeValueWithoutResponse) await bleChar.writeValueWithoutResponse(data);
+      else await bleChar.writeValue(data);
+    } else {
+      await writer.write(data);
+    }
+    return true;
+  } catch (e) {
+    alertBox("No se pudo enviar: " + e.message);
+    return false;
+  }
+}
+
+function alertBox(msg) { window.alert(msg); }
+
+$("btnBle").onclick = () => connectBle(false);
+$("btnBleAll").onclick = () => connectBle(true);
+$("btnUsb").onclick = connectUsb;
+$("btnOff").onclick = disconnect;
+
+// ---------- Pestañas ----------
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === t));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === t.dataset.tab));
+});
+
+// ---------- Control ----------
+async function fire(k, el) {
+  if (el) { el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 250); }
+  if (await send(k)) {
+    const t = new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    $("last").textContent = "Última señal: " + NAMES[k] + " · " + t;
+  }
+}
+document.querySelectorAll(".sig").forEach(b => b.onclick = () => fire(b.dataset.k, b));
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  const k = e.key.toLowerCase();
+  if (NAMES[k] && document.getElementById("control").classList.contains("active")) {
+    fire(k, document.querySelector('.sig[data-k="' + k + '"]'));
+  }
+});
+
+// ---------- Práctica ----------
+let current = null, trials = [];
+function pool() { return $("onlyMain").checked ? MAIN : Object.keys(NAMES); }
+function renderOpts() {
+  $("opts").innerHTML = "";
+  pool().forEach(k => {
+    const b = document.createElement("button");
+    b.className = "btn"; b.textContent = NAMES[k];
+    b.disabled = current === null;
+    b.onclick = () => answer(k);
+    $("opts").appendChild(b);
+  });
+  const nope = document.createElement("button");
+  nope.className = "btn"; nope.textContent = "No sé"; nope.disabled = current === null;
+  nope.onclick = () => answer(null);
+  $("opts").appendChild(nope);
+}
+function renderScore() {
+  const ok = trials.filter(t => t.ok).length;
+  $("score").textContent = ok + " / " + trials.length;
+  $("pct").textContent = trials.length ? Math.round(ok * 100 / trials.length) + " %" : "–";
+  $("tbl").innerHTML = trials.slice().reverse().map((t, i) =>
+    `<tr><td>${trials.length - i}</td><td>${NAMES[t.signal]}</td><td>${t.answer ? NAMES[t.answer] : "No sé"}</td><td class="${t.ok ? "good" : "bad"}">${t.ok ? "✓" : "✗"}</td></tr>`).join("");
+}
+$("btnRandom").onclick = async () => {
+  const p = pool();
+  const k = p[Math.floor(Math.random() * p.length)];
+  if (await send(k)) {
+    current = k;
+    $("pAnswer").textContent = "Señal enviada (oculta). Pregunta al participante.";
+    $("pAnswer").className = "answer";
+    $("btnRepeat").disabled = false;
+    renderOpts();
+  }
+};
+$("btnRepeat").onclick = () => { if (current) send(current); };
+function answer(k) {
+  if (current === null) return;
+  const ok = k === current;
+  trials.push({ participant: $("pid").value.trim() || "P?", signal: current, answer: k, ok, time: new Date().toISOString() });
+  $("pAnswer").innerHTML = (ok ? "✓ Correcto" : "✗ Era: " + NAMES[current]);
+  $("pAnswer").className = "answer " + (ok ? "good" : "bad");
+  current = null; $("btnRepeat").disabled = true;
+  renderOpts(); renderScore();
+}
+$("onlyMain").onchange = renderOpts;
+$("btnResetP").onclick = () => {
+  if (trials.length && !window.confirm("¿Borrar los resultados de esta práctica?")) return;
+  trials = []; current = null; $("pAnswer").textContent = ""; renderOpts(); renderScore();
+};
+$("btnCsv").onclick = () => {
+  const rows = [["participante", "intento", "senal_enviada", "respuesta", "correcto", "hora"]];
+  trials.forEach((t, i) => rows.push([t.participant, i + 1, NAMES[t.signal], t.answer ? NAMES[t.answer] : "No sé", t.ok ? "si" : "no", t.time]));
+  const csv = "﻿" + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = "practica_" + ($("pid").value.trim() || "P") + ".csv";
+  a.click();
+};
+renderOpts(); renderScore();
+
+// ---------- Recorrido ----------
+let t0 = null, elapsed = 0, tick = null;
+const fmt = ms => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+$("btnTimer").onclick = () => {
+  if (tick) { elapsed += Date.now() - t0; clearInterval(tick); tick = null; $("btnTimer").textContent = "Continuar"; }
+  else { t0 = Date.now(); tick = setInterval(() => $("timer").textContent = fmt(elapsed + Date.now() - t0), 250); $("btnTimer").textContent = "Pausar"; }
+};
+$("btnTimerReset").onclick = () => { clearInterval(tick); tick = null; elapsed = 0; $("timer").textContent = "00:00"; $("btnTimer").textContent = "Iniciar"; };
+const counts = [0, 0, 0];
+document.querySelectorAll("[data-c]").forEach(b => {
+  const i = +b.dataset.c; let hold = null, held = false;
+  const down = () => { held = false; hold = setTimeout(() => { held = true; counts[i] = Math.max(0, counts[i] - 1); $("c" + i).textContent = counts[i]; }, 600); };
+  const up = () => { clearTimeout(hold); if (!held) { counts[i]++; $("c" + i).textContent = counts[i]; } };
+  b.addEventListener("pointerdown", down); b.addEventListener("pointerup", up);
+  b.addEventListener("pointerleave", () => clearTimeout(hold));
+});
+</script>
+</body>
+</html>
